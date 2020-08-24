@@ -4,12 +4,13 @@ var config = {
 	servers: 1,
 	browsers: 4,
 	each: 1500,
-	wait: 1,
+	wait: 10,
 	route: {
 		'/': __dirname + '/index.html',
 		'/gun.js': __dirname + '/../../gun.js',
 		'/jquery.js': __dirname + '/../../examples/jquery.js'
-	}
+	},
+	runID: 'test-' + new Date().toISOString(),
 }
 
 /*
@@ -114,6 +115,11 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 			Array.apply(0, { length: 4 }).forEach((x, i) => {
 				console.log('Opening browser page ' + i + ' with puppeteer...');
 				browser.newPage().then(page => {
+					page.on('console', msg => {
+						for (let j = 0; j < msg.args().length; ++j) {
+							console.log(`${i}: ${msg.args()[j]}`);
+						}
+					});
 					return page.goto("http://"+ config.IP +":"+ config.port);
 				}).then(() => {
 					console.log('Browser page ' + i + ' open');
@@ -166,6 +172,7 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 		browsers.each(function(client, id){
 			// for every browser, run the following code:
 			tests.push(client.run(function(test){
+				console.log('running sync test with config');
 				//var audio = new Audio('https://www.nasa.gov/mp3/640170main_Roger%20Roll.mp3');audio.addEventListener('ended', function() {this.currentTime = 0;this.play();}, false);audio.play(); // testing if audio prevents Chrome throttle?
 				localStorage.clear(); // Clean up anything from before.
 				var env = test.props;
@@ -181,7 +188,11 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 				}
 				// Pass all the servers we want to connect to into gun.
 				//var gun = Gun();
+				console.log('peers: ' + JSON.stringify(peers, null, 2));
 				var gun = Gun(peers);
+				gun._.on('hi', peer => {
+					console.log('hi: ' + peer.id);
+				});
 				// Now we want to create a list
 				// of all the messages that WILL be sent
 				// according to the expected configuration.
@@ -203,7 +214,8 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 				// Add a nifty UI that tells us how many messages have been verified.
 				// FINALLY, tell gun to subscribe to every record
 				// that is is/will be saved to this table.
-				gun.get('test').map().on(function(data, key){
+				console.log('subbed to ' + env.config.runID);
+				gun.get(env.config.runID).get('root').map().on(function(data, key){
 					// When we get realtime updates to the data,
 					// create or reuse a DIV that we
 					//var el = $('#'+key).length ? $('#'+key) : $('<div>');
@@ -221,6 +233,11 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 						// from our verify todo list.
 						check[key] = 0;
 						report.text(num +" / "+ total +" Verified");
+						if (num % 100 === 0) {
+							console.log(num +" / "+ total +" Verified");
+						}
+					} else {
+						console.log('Unexpected data: ' + JSON.stringify(data) + ' at ' + key)
 					}
 					// This next part is important:
 					if(Gun.obj.map(check, function(still){
@@ -239,6 +256,7 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 					// Cool, make a recursive function
 					// that keeps going until we've saved each message.
 					if(env.config.each <= i){
+						console.log('put done');
 						clearTimeout(to);
 						return;
 					}
@@ -247,7 +265,8 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 					var p = env.id + i;
 					// And actually save the data with gun,
 					// as a record added to one big 'test' table.
-					gun.get('test').get(p).put('Hello world, '+ p +'!');
+					// console.log('put to ' + env.config.runID + '/' + p);
+					gun.get(env.config.runID).get('root').get(p).put('Hello world, '+ p +'!');
 				}, env.config.wait);
 			}, {i: i += 1, id: id, ids: ids, config: config})); 
 		});
