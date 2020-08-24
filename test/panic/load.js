@@ -105,10 +105,23 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 
 	it(config.browsers +" browser(s) have joined!", function(){
 		// Okay! Cool. Now we can move on to the next step...
-		console.log("PLEASE OPEN http://"+ config.IP +":"+ config.port +" IN "+ config.browsers +" BROWSER(S)!");
+		// console.log("PLEASE OPEN http://"+ config.IP +":"+ config.port +" IN "+ config.browsers +" BROWSER(S)!");
 		// Which is to manually open up a bunch of browser tabs
 		// and connect to the PANIC server in the same way
 		// the NodeJS servers did.
+
+		require('puppeteer').launch().then(browser => {
+			Array.apply(0, { length: 4 }).forEach((x, i) => {
+				console.log('Opening browser page ' + i + ' with puppeteer...');
+				browser.newPage().then(page => {
+					return page.goto("http://"+ config.IP +":"+ config.port);
+				}).then(() => {
+					console.log('Browser page ' + i + ' open');
+				});
+			});
+		});
+		// const page = await browser.newPage();
+		// await page.goto("http://"+ config.IP +":"+ config.port);
 
 		// However! We're gonna cheat...
 		browsers.atLeast(1).then(function(){
