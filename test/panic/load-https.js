@@ -1,6 +1,6 @@
 var config = {
 	IP: require('ip').address(),
-	port: 8865,
+	port: 8765,
 	servers: 1,
 	browsers: 4,
 	each: 1500,
@@ -9,13 +9,8 @@ var config = {
 		'/': __dirname + '/index.html',
 		'/gun.js': __dirname + '/../../gun.js',
 		'/jquery.js': __dirname + '/../../examples/jquery.js'
-	},
-	runID: 'test-' + new Date().toISOString(),
+	}
 }
-
-var Path = require('path');
-var rootPath = Path.normalize(Path.join(__dirname, '..', '..'));
-var gunPath = Path.join(rootPath, 'gun');
 
 /*
 	Welcome, person!
@@ -33,7 +28,15 @@ var gunPath = Path.join(rootPath, 'gun');
 // It then coordinates these clients to cause chaos in the distributed system.
 // Cool huh?
 var panic = require('panic-server');
-panic.server().on('request', function(req, res){ // Static server
+var fs = require('fs');
+var server = require('https').createServer({
+	key: fs.readFileSync(__dirname+'/../https/server.key'),
+	cert: fs.readFileSync(__dirname+'/../https/server.crt'),
+	ca: fs.readFileSync(__dirname+'/../https/ca.crt'),
+	requestCert: true,
+	rejectUnauthorized: false
+});
+panic.server(server).on('request', function(req, res){ // Static server
 	config.route[req.url] && require('fs').createReadStream(config.route[req.url]).pipe(res);
 }).listen(config.port); // Start panic server.
 
@@ -51,7 +54,7 @@ manager.start({
 				port: config.port + (i + 1) // They'll need unique ports to start their servers on, if we run the test on 1 machine.
 			}
     }),
-    panic: 'http://' + config.IP + ':' + config.port // Auto-connect to our panic server.
+    panic: 'https://' + config.IP + ':' + config.port // Auto-connect to our panic server.
 });
 
 // Now lets divide our clients into "servers" and "browsers".
@@ -88,22 +91,18 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 				// Clean up from previous test.
 				try{ require('fs').unlinkSync(env.i+'data.json') }catch(e){}
 				var server = require('http').createServer(function(req, res){
-					res.end("I am "+ env.i +"! " + JSON.stringify(test, null, 2));
+					res.end("I am "+ env.i +"!");
 				});
 				// Launch the server and start gun!
-				var Gun = require(env.gunPath);
+				var Gun = require('gun');
 				// Attach the server to gun.
-				var gun = new Gun({file: env.i+'data', web: server, localStorage: false});
-				gun._.on('hi', peer => {
-					console.log('server ' + i + ' hi: ' + peer.id);
-				});
+				var gun = Gun({file: env.i+'data', web: server, localStorage: false});
 				server.listen(env.config.port + env.i, function(){
 					// This server peer is now done with the test!
 					// It has successfully launched.
-					console.log('Server ' + env.i + ' launched on port ' + (env.config.port + env.i));
 					test.done();
 				});
-			}, {i: i += 1, config: config, gunPath: gunPath}))
+			}, {i: i += 1, config: config})); 
 		});
 		// NOW, this is very important:
 		// Do not proceed to the next test until
@@ -114,26 +113,10 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 
 	it(config.browsers +" browser(s) have joined!", function(){
 		// Okay! Cool. Now we can move on to the next step...
-		// console.log("PLEASE OPEN http://"+ config.IP +":"+ config.port +" IN "+ config.browsers +" BROWSER(S)!");
+		console.log("PLEASE OPEN https://"+ config.IP +":"+ config.port +" IN "+ config.browsers +" BROWSER(S)!");
 		// Which is to manually open up a bunch of browser tabs
 		// and connect to the PANIC server in the same way
 		// the NodeJS servers did.
-
-		require('puppeteer').launch().then(browser => {
-			Array.apply(0, { length: 4 }).forEach((x, i) => {
-				console.log('Opening browser page ' + i + ' with puppeteer...');
-				browser.newPage().then(page => {
-					page.on('console', msg => {
-						for (let j = 0; j < msg.args().length; ++j) {
-							console.log(`${i}: ${msg.args()[j]}`);
-						}
-					});
-					return page.goto("http://"+ config.IP +":"+ config.port);
-				}).then(() => {
-					console.log('Browser page ' + i + ' open');
-				});
-			});
-		});
 
 		// However! We're gonna cheat...
 		browsers.atLeast(1).then(function(){
@@ -193,11 +176,7 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 				}
 				// Pass all the servers we want to connect to into gun.
 				//var gun = Gun();
-				console.log('peers: ' + JSON.stringify(peers, null, 2));
-				var gun = new Gun(peers);
-				gun._.on('hi', peer => {
-					console.log('hi: ' + peer.id);
-				});
+				var gun = Gun(peers);
 				// Now we want to create a list
 				// of all the messages that WILL be sent
 				// according to the expected configuration.
@@ -219,8 +198,7 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 				// Add a nifty UI that tells us how many messages have been verified.
 				// FINALLY, tell gun to subscribe to every record
 				// that is is/will be saved to this table.
-				gun.get(env.config.runID).get('root').map().on(function(data, key){
-					// console.log('got ' + JSON.stringify(data) + ' at ' + key);
+				gun.get('test').map().on(function(data, key){
 					// When we get realtime updates to the data,
 					// create or reuse a DIV that we
 					//var el = $('#'+key).length ? $('#'+key) : $('<div>');
@@ -238,11 +216,6 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 						// from our verify todo list.
 						check[key] = 0;
 						report.text(num +" / "+ total +" Verified");
-						if (num % 100 === 0) {
-							console.log(num +" / "+ total +" Verified");
-						}
-					} else {
-						console.log('Unexpected data: ' + JSON.stringify(data) + ' at ' + key)
 					}
 					// This next part is important:
 					if(Gun.obj.map(check, function(still){
@@ -257,12 +230,10 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 					test.done();
 				});
 				// But we have to actually tell the browser to save data!
-				console.log('begin put');
 				var i = 0, to = setInterval(function go(){
 					// Cool, make a recursive function
 					// that keeps going until we've saved each message.
 					if(env.config.each <= i){
-						console.log('put done');
 						clearTimeout(to);
 						return;
 					}
@@ -271,8 +242,7 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 					var p = env.id + i;
 					// And actually save the data with gun,
 					// as a record added to one big 'test' table.
-					// console.log('put to ' + env.config.runID + '/' + p);
-					gun.get(env.config.runID).get('root').get(p).put('Hello world, '+ p +'!');
+					gun.get('test').get(p).put('Hello world, '+ p +'!');
 				}, env.config.wait);
 			}, {i: i += 1, id: id, ids: ids, config: config})); 
 		});
