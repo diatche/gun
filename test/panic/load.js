@@ -103,7 +103,10 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 					console.log('Server ' + env.i + ' launched on port ' + (env.config.port + env.i));
 					test.done();
 				});
-			}, {i: i += 1, config: config, gunPath: gunPath}))
+			}, {i: i += 1, config: config, gunPath: gunPath}).catch(err => {
+				console.error('Server error: ' + err.message);
+				throw err;
+			}))
 		});
 		// NOW, this is very important:
 		// Do not proceed to the next test until
