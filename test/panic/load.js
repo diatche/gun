@@ -91,11 +91,11 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 					res.end("I am "+ env.i +"! " + JSON.stringify(test, null, 2));
 				});
 				// Launch the server and start gun!
-				var Gun = require(env.gunPath);
+				var Gun = require('gun');
 				// Attach the server to gun.
 				var gun = new Gun({file: env.i+'data', web: server, localStorage: false});
 				gun._.on('hi', peer => {
-					console.log('server ' + i + ' hi: ' + peer.id);
+					console.log('server ' + env.i + ' hi: ' + peer.id);
 				});
 				server.listen(env.config.port + env.i, function(){
 					// This server peer is now done with the test!
@@ -123,7 +123,7 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 		// the NodeJS servers did.
 
 		require('puppeteer').launch().then(browser => {
-			Array.apply(0, { length: 4 }).forEach((x, i) => {
+			Array(4).fill(0).forEach((x, i) => {
 				console.log('Opening browser page ' + i + ' with puppeteer...');
 				browser.newPage().then(page => {
 					page.on('console', msg => {
