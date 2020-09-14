@@ -117,26 +117,30 @@ describe("Load test "+ config.browsers +" browser(s) across "+ config.servers +"
 
 	it(config.browsers +" browser(s) have joined!", function(){
 		// Okay! Cool. Now we can move on to the next step...
-		// console.log("PLEASE OPEN http://"+ config.IP +":"+ config.port +" IN "+ config.browsers +" BROWSER(S)!");
-		// Which is to manually open up a bunch of browser tabs
+		// Which is to automatically or manually open up a bunch of browser tabs
 		// and connect to the PANIC server in the same way
 		// the NodeJS servers did.
 
-		require('puppeteer').launch().then(browser => {
-			Array(4).fill(0).forEach((x, i) => {
-				console.log('Opening browser page ' + i + ' with puppeteer...');
-				browser.newPage().then(page => {
-					page.on('console', msg => {
-						for (let j = 0; j < msg.args().length; ++j) {
-							console.log(`${i}: ${msg.args()[j]}`);
-						}
+		try {
+			require('puppeteer').launch().then(browser => {
+				Array(4).fill(0).forEach((x, i) => {
+					console.log('Opening browser page ' + i + ' with puppeteer...');
+					browser.newPage().then(page => {
+						page.on('console', msg => {
+							for (let j = 0; j < msg.args().length; ++j) {
+								console.log(`${i}: ${msg.args()[j]}`);
+							}
+						});
+						return page.goto("http://"+ config.IP +":"+ config.port);
+					}).then(() => {
+						console.log('Browser page ' + i + ' open');
 					});
-					return page.goto("http://"+ config.IP +":"+ config.port);
-				}).then(() => {
-					console.log('Browser page ' + i + ' open');
 				});
 			});
-		});
+		} catch (err) {
+			console.log("PLEASE OPEN http://"+ config.IP +":"+ config.port +" IN "+ config.browsers +" BROWSER(S)!");
+			console.warn('Consider installing puppeteer to automate browser management (npm i -g puppeteer && npm link puppeteer)');
+		}
 
 		// However! We're gonna cheat...
 		browsers.atLeast(1).then(function(){
