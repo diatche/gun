@@ -33,5 +33,24 @@
       console.log("text-encoding and peculiar/nwebcrypto may not be included by default, please add it to your package.json!");
     }}
 
+    if(!api.crypto)
+    {
+      try
+      {
+      var Crypto = USE('expo-crypto', 1);
+      var random = USE('expo-random', 1);
+      Object.assign(api, {
+        crypto: {
+          digest: (algo, data) => Crypto.digestStringAsync()
+        },
+        random: async (len) => Buffer.from(await random.getRandomBytesAsync(len))
+      });      
+      // const { Crypto: WebCrypto } = USE('@peculiar/webcrypto', 1);
+      // api.ossl = api.subtle = new WebCrypto({directory: 'ossl'}).subtle // ECDH
+    }
+    catch(e){
+      console.log("text-encoding and @peculiar/webcrypto may not be included by default, please add it to your package.json!");
+    }}
+
     module.exports = api
   
