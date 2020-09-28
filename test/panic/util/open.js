@@ -8,14 +8,23 @@ module.exports = {
             count = 1;
         }
         if (!url || typeof url !== 'string') {
-            throw new Error('Invalid URL');
-        }
+            return Promise.reject(new Error('Invalid URL'));
+		}
+		options = options || {};
+		// Running headless has some differences and is not supported.
+		// For example: Throwing an error after test.async() does not fail the test!
+		options.headless = false;
         try {
-			require('puppeteer').launch(options).then(browser => {
+			const puppeteer = require('puppeteer');
+			return (async () => {
+				console.log('Opening browser with puppeteer...');
+				let browser = await puppeteer.launch(options);
 				_browsers.push(browser);
-				Array(count).fill(0).forEach((x, i) => {
+				let pages = await Promise.all(Array(count).fill(0).map((x, i) => {
 					console.log('Opening browser page ' + i + ' with puppeteer...');
-					browser.newPage().then(page => {
+					return (async () => {
+						let page = await browser.newPage();
+
 						page.on('console', msg => {
 							if (msg.text() === 'JSHandle@object') {
 								// FIXME: Avoid text comparison
@@ -23,15 +32,36 @@ module.exports = {
 							}
 							console.log(`${i} [${msg.type()}]: ${msg.text()}`);
 						});
-						return page.goto(url);
-					}).then(() => {
+
+						// await page.setCacheEnabled(false);
+						await page.goto(url);
 						console.log('Browser page ' + i + ' open');
-					});
-				});
-			});
+						if (options.scripts) {
+							await Promise.all((options.scripts || []).map(scriptOpts => {
+								if (typeof scriptOpts === 'string') {
+									scriptOpts = {
+										url: scriptOpts,
+										type: 'text/javascript',
+									};
+								}
+								console.log(`Browser page ${i} loading script: ${scriptOpts.url || scriptOpts.path || '(raw js)'}`)
+								return page.addScriptTag(scriptOpts);
+							}));
+							console.log('Browser page ' + i + ' loaded all scripts');
+						}
+						return page;
+					})();
+				}));
+				console.log('Browser ready');
+				return {
+					browser,
+					pages,
+				}
+			})();
 		} catch (err) {
 			console.log("PLEASE OPEN "+ url +" IN "+ count +" BROWSER(S)!");
 			console.warn('Consider installing puppeteer to automate browser management (npm i -g puppeteer && npm link puppeteer)');
+			return Promise.resolve();
 		}
 	},
 	cleanup: () => {
