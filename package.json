@@ -15,6 +15,8 @@
     "test": "mocha",
     "testsea": "mocha test/sea/sea.js",
     "testaxe": "mocha test/axe/holy-grail.js",
+    "testPanic": "npm run panicSetup && npm test",
+    "panicSetup": "cd node_modules/panic-client && (npm link gun && cd ../..) || cd ../..",
     "e2e": "mocha e2e/distributed.js",
     "docker": "hooks/build",
     "minify": "uglifyjs gun.js -o gun.min.js -c -m",
